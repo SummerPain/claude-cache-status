@@ -97,19 +97,36 @@ export const register: Register = on => {
     if (e.props.hasSurvey || v === null) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
-    const hit = v.lastHit === null ? '' : ` · last message hit ${v.lastHit}%`
+    const dot = <Text dimColor> · </Text>
+    const parts =
+      v.minutesLeft >= 0
+        ? [
+            <Text color="success" weight="bold">Cache warm</Text>,
+            dot,
+            'cools in ',
+            <Text color={v.minutesLeft <= 5 ? 'warning' : 'text'} weight="bold">{v.minutesLeft} min</Text>,
+            <Text dimColor> ({v.ttlMinutes} min TTL)</Text>,
+            dot,
+            <Text color="suggestion">{kTokens(v.contextTokens)} context</Text>,
+          ]
+        : [
+            <Text color="error" weight="bold">Cache cold</Text>,
+            <Text dimColor> for {-v.minutesLeft} min</Text>,
+            dot,
+            'next message rewrites ',
+            <Text color="warning" weight="bold">{kTokens(v.contextTokens)}</Text>,
+          ]
+    if (v.lastHit !== null) {
+      parts.push(
+        dot,
+        <Text dimColor>last message hit </Text>,
+        <Text color={v.lastHit >= 50 ? 'success' : 'error'}>{v.lastHit}%</Text>,
+      )
+    }
 
     return (
       <Box>
-        {v.minutesLeft >= 0 ? (
-          <Text dimColor>
-            Cache warm · cools in {v.minutesLeft} min ({v.ttlMinutes} min TTL) · {kTokens(v.contextTokens)} context{hit}
-          </Text>
-        ) : (
-          <Text color="warning">
-            Cache cold for {-v.minutesLeft} min · next message rewrites {kTokens(v.contextTokens)}{hit}
-          </Text>
-        )}
+        <Text>{...parts}</Text>
       </Box>
     )
   })
