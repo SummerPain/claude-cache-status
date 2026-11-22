@@ -6,7 +6,6 @@ import type { CacheView } from '../types'
 const view = atom({ plugin: 'cache-status', key: 'view' } as const, null)
 
 const TICK_MS = 30_000
-const BAR_CELLS = 20
 // shortcut: reads only the transcript's tail; a single entry larger than this hides older replies, raise it if that shows up.
 const TAIL_BYTES = 512 * 1024
 
@@ -99,40 +98,42 @@ export const register: Register = on => {
 
     const { Box, Text } = $.ui.resolve(e)
     const dot = <Text dimColor> · </Text>
-    const parts =
-      v.minutesLeft >= 0
-        ? [
-            <Text color="success" weight="bold">Cache warm</Text>,
-            dot,
-            'cools in ',
-            <Text color={v.minutesLeft <= 5 ? 'warning' : 'text'} weight="bold">{v.minutesLeft} min</Text>,
-            <Text dimColor> ({v.ttlMinutes} min TTL)</Text>,
-            dot,
-            <Text color="suggestion">{kTokens(v.contextTokens)} context</Text>,
-          ]
-        : [
-            <Text color="error" weight="bold">Cache cold</Text>,
-            <Text dimColor> for {-v.minutesLeft} min</Text>,
-            dot,
-            'next message rewrites ',
-            <Text color="warning" weight="bold">{kTokens(v.contextTokens)}</Text>,
-          ]
-    if (v.lastHit !== null) {
+    const isWarm = v.minutesLeft >= 0
+
+    // Battery segments (pick page "Cache row look", take 3): one per 5 min of a 1 h TTL, one per minute of a 5 min TTL.
+    // Green above a quarter of the TTL left, amber above a twelfth, red below.
+    const segments = v.ttlMinutes >= 60 ? 12 : v.ttlMinutes
+    const lit = isWarm ? Math.ceil((v.minutesLeft * segments) / v.ttlMinutes - 1e-9) : 0
+    const share = v.minutesLeft / v.ttlMinutes
+    const color = share > 1 / 4 ? 'success' : share > 1 / 12 ? 'warning' : 'error'
+
+    const parts = isWarm
+      ? [
+          <Text color={color} weight="bold">{v.minutesLeft} min</Text>,
+          <Text dimColor> until cold</Text>,
+          dot,
+          <Text color="suggestion">{kTokens(v.contextTokens)} context</Text>,
+        ]
+      : [
+          <Text color="error" weight="bold">Cold {-v.minutesLeft} min</Text>,
+          dot,
+          <Text dimColor>next message rewrites </Text>,
+          <Text color="warning" weight="bold">{kTokens(v.contextTokens)}</Text>,
+        ]
+    if (isWarm && v.lastHit !== null) {
       parts.push(
         dot,
-        <Text dimColor>last message hit </Text>,
+        <Text dimColor>hit </Text>,
         <Text color={v.lastHit >= 50 ? 'success' : 'error'}>{v.lastHit}%</Text>,
       )
     }
 
-    // Time left as a bar that drains from full (just written) to empty (cold).
-    const filled = Math.round((BAR_CELLS * Math.max(0, v.minutesLeft)) / v.ttlMinutes)
-
     return (
       <Box flexDirection="row" gap={1}>
-        <Box flexDirection="row" width={BAR_CELLS} height={1} backgroundColor="subtle">
-          <Box key="fill" width={filled} height={1} backgroundColor={v.minutesLeft <= 5 ? 'warning' : 'success'} />
-        </Box>
+        <Text>
+          {lit > 0 && <Text color={color}>{'▮'.repeat(lit)}</Text>}
+          {lit < segments && <Text color="subtle">{'▮'.repeat(segments - lit)}</Text>}
+        </Text>
         <Text>{...parts}</Text>
       </Box>
     )

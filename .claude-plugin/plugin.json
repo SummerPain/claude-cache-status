@@ -1,6 +1,6 @@
 {
   "name": "cache-status",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A row above the prompt that shows whether the prompt cache is warm or cold, when it cools, and how the last message landed",
   "types": "./types/index.d.ts"
 }

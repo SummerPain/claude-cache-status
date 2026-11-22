@@ -2,8 +2,8 @@
 
 A Claude Code mod that adds one row above the prompt showing the state of the session's prompt cache:
 
-- **Time-left bar**: full right after a request, drains as the cache lifetime runs out, empty once cold. It turns yellow in the last 5 minutes.
-- **Warm**: minutes until the cache cools, the cache lifetime in use (5 min or 1 h), and the context size.
+- **Battery segments**: twelve segments of 5 minutes each for a 1 h cache (one per minute for a 5 min cache). All lit right after a request, they go out as the cache lifetime runs down: green, then amber in the last quarter of an hour, red in the last 5 minutes, all grey once cold.
+- **Warm**: minutes until the cache cools, in the segments' colour, and the context size.
 - **Cold**: how long it has been cold and how many tokens the next message will write to the cache again.
 - **Last message hit**: what share of the input to your latest message was served from the cache.
 
