@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { CacheView } from '../types'
 
@@ -68,27 +68,34 @@ export function summarize(text: string, nowMs: number): CacheView | null {
 
 const kTokens = (n: number) => `${Math.round(n / 1000)}k`
 
+// Takes the transcript path at each call: a resumed or cleared session moves to another file, and it can be empty at start.
+const refresh = async ($: EngineInterface) => {
+  try {
+    const { transcriptPath } = await $.session.info()
+    if (!transcriptPath) return
+    const { size } = await $.fs.stat(transcriptPath)
+    const offset = Math.max(0, size - TAIL_BYTES)
+    let text = (await $.fs.read(transcriptPath, { offset })) as string
+    if (offset > 0) text = text.slice(text.indexOf('\n') + 1)
+    const fresh = summarize(text, await $.clock.now())
+    await update($, view, () => fresh)
+  } catch {
+    // No transcript yet: keep the row as it was.
+  }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    const { transcriptPath } = await $.session.info()
-    if (!transcriptPath) return result
+    await refresh($)
+    $.clock.every(TICK_MS, () => refresh($))
+    return result
+  })
 
-    const refresh = async () => {
-      try {
-        const { size } = await $.fs.stat(transcriptPath)
-        const offset = Math.max(0, size - TAIL_BYTES)
-        let text = (await $.fs.read(transcriptPath, { offset })) as string
-        if (offset > 0) text = text.slice(text.indexOf('\n') + 1)
-        const fresh = summarize(text, await $.clock.now())
-        await update($, view, () => fresh)
-      } catch {
-        // No transcript yet: keep the row as it was.
-      }
-    }
-
-    await refresh()
-    $.clock.every(TICK_MS, refresh)
+  // Show the row as soon as a reply lands, not at the next tick.
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId === undefined) await refresh($)
     return result
   })
 
